@@ -16,7 +16,6 @@ jobs:
     steps:
       - name: Fetch weather
         run: |
-          CITY= "London"
           WEATHER=$(curl -s "wttr.in/$CITY?format=3")
           echo "Weather in $CITY: $WEATHER"
 
