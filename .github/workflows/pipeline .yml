@@ -16,9 +16,9 @@ jobs:
     steps:
       - name: Fetch weather
         run: |
-          WEATHER=$(curl -s "wttr.in/$CITY?format=3")
-          echo "Weather in $CITY: $WEATHER"
+          WEATHER=$(curl -s "wttr.in/${{ matrix.city }}?format=3")
+          echo "Weather in ${{ matrix.city }}: $WEATHER"
 
-          echo "## $CITY Weather" >> $GITHUB_STEP_SUMMARY
+          echo "## ${{ matrix.city }} Weather" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**$WEATHER**" >> $GITHUB_STEP_SUMMARY
