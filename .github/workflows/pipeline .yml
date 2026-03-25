@@ -14,10 +14,6 @@ jobs:
         city: [London,Tokyo,NYC]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/upload-artifact@v4
-        with:
-          name: report
-          path: out.txt
       - name: Fetch weather
         run: |
           WEATHER=$(curl -s "wttr.in/${{ matrix.city }}?format=3")
@@ -26,3 +22,7 @@ jobs:
           echo "## ${{ matrix.city }} Weather" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**$WEATHER**" >> $GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: report
+          path: out.txt
