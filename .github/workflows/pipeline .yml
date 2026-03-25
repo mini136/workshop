@@ -1,32 +1,131 @@
+# NOTE: You must create a secret called DEPLOY_TOKEN in this repo's Settings → Secrets → Actions.
+# It should be a Personal Access Token (PAT) with repo write access to mini136/mini136.github.io.
+
 name: testLab
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-##  schedule:
-##    - cron: "0 8 * * *"
+  schedule:
+    - cron: "0 6 * * *"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
-  weather:
-    strategy: 
-      matrix:
-        city: [London,Tokyo,NYC]
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch weather
+      - name: Fetch weather and build index.html
         run: |
-          WEATHER=$(curl -s "wttr.in/${{ matrix.city }}?format=3")
-          echo "Weather in ${{ matrix.city }}: $WEATHER"
+          LONDON=$(curl -s "wttr.in/London?format=3")
+          TOKYO=$(curl -s "wttr.in/Tokyo?format=3")
+          NYC=$(curl -s "wttr.in/NYC?format=3")
 
-          echo "## ${{ matrix.city }} Weather" >> out.txt
-          echo "$WEATHER" >> out.txt
+          NOW=$(date -u '+%Y-%m-%d %H:%M UTC')
 
-          echo "## ${{ matrix.city }} Weather" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**$WEATHER**" >> $GITHUB_STEP_SUMMARY
-          
-      - uses: actions/upload-artifact@v4
+          echo "## Weather Report" >> $GITHUB_STEP_SUMMARY
+          echo "**London:** $LONDON" >> $GITHUB_STEP_SUMMARY
+          echo "**Tokyo:** $TOKYO" >> $GITHUB_STEP_SUMMARY
+          echo "**NYC:** $NYC" >> $GITHUB_STEP_SUMMARY
+
+          cat > index.html <<EOF
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>Live Weather Report</title>
+            <style>
+              * { box-sizing: border-box; margin: 0; padding: 0; }
+              body {
+                background: #0d1117;
+                color: #e6edf3;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                min-height: 100vh;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 2rem 1rem;
+              }
+              h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+              .subtitle { color: #8b949e; margin-bottom: 2rem; font-size: 0.95rem; }
+              .cards { display: flex; flex-wrap: wrap; gap: 1.5rem; justify-content: center; width: 100%; max-width: 900px; }
+              .card {
+                background: #161b22;
+                border: 1px solid #30363d;
+                border-radius: 12px;
+                padding: 1.5rem 2rem;
+                flex: 1 1 220px;
+                min-width: 200px;
+              }
+              .card h2 { font-size: 1.2rem; margin-bottom: 0.75rem; color: #58a6ff; }
+              .card p { font-size: 1rem; line-height: 1.6; word-break: break-word; }
+              footer { margin-top: 3rem; color: #8b949e; font-size: 0.85rem; }
+            </style>
+          </head>
+          <body>
+            <h1>🌤️ Live Weather Report</h1>
+            <p class="subtitle">$NOW</p>
+            <div class="cards">
+              <div class="card">
+                <h2>🇬🇧 London</h2>
+                <p>$LONDON</p>
+              </div>
+              <div class="card">
+                <h2>🇯🇵 Tokyo</h2>
+                <p>$TOKYO</p>
+              </div>
+              <div class="card">
+                <h2>🗽 New York City</h2>
+                <p>$NYC</p>
+              </div>
+            </div>
+            <footer>Last updated: $NOW</footer>
+          </body>
+          </html>
+          EOF
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: report-${{ matrix.city }}
-          path: out.txt
+          path: "."
+
+  deploy-pages:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  push-to-github-io:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download Pages artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          path: site
+
+      - name: Extract artifact and push index.html to mini136.github.io
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+        run: |
+          cd site && tar -xf artifact.tar
+          cd ..
+          git clone "https://x-access-token:${DEPLOY_TOKEN}@github.com/mini136/mini136.github.io.git" gh-pages-repo
+          cp site/index.html gh-pages-repo/index.html
+          cd gh-pages-repo
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add index.html
+          git diff --cached --quiet || git commit -m "chore: update weather report $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git push
